@@ -1,7 +1,13 @@
 import { isHexString, arrayify, hexlify } from "@ethersproject/bytes";
 import Memory from "../memory";
 import Stack from "../stack";
-import { InvalidByteCode } from "./error";
+import {
+  InvalidByteCode,
+  InvalidProgramCounterIndex,
+  UnknownOpCode,
+} from "./error";
+import Instruction from "../instructions";
+import Opcodes from "../../opcodes";
 
 class ExecutionContext {
   private readonly code: Uint8Array;
@@ -27,12 +33,30 @@ class ExecutionContext {
 
   public run = (): void => {
     while (!this.stopped) {
-      const opcode = this.readBytesFromCode(1);
-      if (!opcode) {
-        this.stop();
-      }
+      const currentCounter = this.pc;
+      console.log(`@pc = ${currentCounter}`);
+
+      const instruction = this.fetchInstruction();
+      instruction.execute(this);
+      console.log(`@instruction = ${instruction.name}\t @pc=${currentCounter}`);
+
+      this.memory.print();
+      this.stack.print();
+
+      console.log("\n");
     }
   };
+
+  private fetchInstruction(): Instruction {
+    if (this.pc > this.code.length) return Opcodes[0];
+    if (this.pc < 0) throw new InvalidProgramCounterIndex();
+
+    const opcode = this.readBytesFromCode(1);
+    const instruction = Opcodes[Number(opcode)];
+
+    if (!instruction) throw new UnknownOpCode();
+    return instruction;
+  }
 
   public readBytesFromCode(bytes: number): bigint {
     const hexValues = this.code.slice(this.pc, this.pc + bytes);
